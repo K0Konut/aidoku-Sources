@@ -1,12 +1,12 @@
 {
-  "name": "Development Source List",
+  "name": "Source List",
   "sources": [
     {
       "id": "fr.lelscanfr",
       "name": "LelscanFR",
-      "version": 1,
-      "iconURL": "icons/fr.lelscanfr-v1.png",
-      "downloadURL": "sources/fr.lelscanfr-v1.aix",
+      "version": 2,
+      "iconURL": "icons/fr.lelscanfr-v2.png",
+      "downloadURL": "sources/fr.lelscanfr-v2.aix",
       "languages": [
         "fr"
       ],

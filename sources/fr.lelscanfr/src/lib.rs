@@ -337,7 +337,6 @@ fn fetch_chapters(
         html = get_html(&manga_url(manga_key, page))?;
     }
 
-    chapters.reverse();
     Ok(chapters)
 }
 
