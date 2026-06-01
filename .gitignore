@@ -1,0 +1,5 @@
+target/
+package.aix
+*.aix
+!public/sources/*.aix
+.DS_Store

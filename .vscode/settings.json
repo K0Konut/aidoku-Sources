@@ -1,0 +1,16 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["*/res/source.json"],
+      "url": "https://raw.githubusercontent.com/Aidoku/aidoku-rs/refs/heads/main/crates/cli/src/supporting/schema/source.schema.json"
+    },
+    {
+      "fileMatch": ["*/res/filters.json"],
+      "url": "https://raw.githubusercontent.com/Aidoku/aidoku-rs/refs/heads/main/crates/cli/src/supporting/schema/filters.schema.json"
+    },
+    {
+      "fileMatch": ["*/res/settings.json"],
+      "url": "https://raw.githubusercontent.com/Aidoku/aidoku-rs/refs/heads/main/crates/cli/src/supporting/schema/settings.schema.json"
+    }
+  ]
+}

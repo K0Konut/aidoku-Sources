@@ -1,0 +1,16 @@
+[
+	{
+		"id": "type",
+		"title": "Type",
+		"type": "select",
+		"options": ["Tous", "Manga", "Manhua", "Manhwa", "Bande dessinee"],
+		"ids": ["", "manga", "manhua", "manhwa", "bande-dessinee"]
+	},
+	{
+		"id": "status",
+		"title": "Statut",
+		"type": "select",
+		"options": ["Tous", "En cours", "Termine", "En pause"],
+		"ids": ["", "en-cours", "termin", "en-pause"]
+	}
+]
