@@ -16,8 +16,12 @@ rustup target add wasm32-unknown-unknown
 cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli
 ```
 
-This workspace currently does not include Rust or `aidoku`; install those before
-building packages locally.
+If `rustup`, `cargo` or `aidoku` are missing in a new shell, reload Cargo's
+environment first:
+
+```sh
+source ~/.cargo/env
+```
 
 ## Repository Layout
 
@@ -55,6 +59,48 @@ aidoku serve package.aix
 
 - `fr.lelscanfr`: LelscanFR, French manga scans from
   `https://www.lelscanfr.com`
+
+## Updating And Publishing
+
+When editing an existing source, always bump the source version first. For
+LelscanFR, update `sources/fr.lelscanfr/res/source.json`:
+
+```json
+{
+  "info": {
+    "version": 2
+  }
+}
+```
+
+Then rebuild and verify the package:
+
+```sh
+cd ~/Projects/Aidoku-Sources/sources/fr.lelscanfr
+aidoku package
+aidoku verify package.aix
+```
+
+Rebuild the public source list from the repository root:
+
+```sh
+cd ~/Projects/Aidoku-Sources
+aidoku build sources/fr.lelscanfr/package.aix -o public
+```
+
+Commit and push the source changes plus the rebuilt `public/` files:
+
+```sh
+git add sources/fr.lelscanfr public README.md
+git commit -m "fix: update LelscanFR source"
+git push origin main
+```
+
+The Aidoku source list URL is:
+
+```text
+https://raw.githubusercontent.com/K0Konut/aidoku-Sources/main/public/index.min.json
+```
 
 ## What A Source Implements
 
