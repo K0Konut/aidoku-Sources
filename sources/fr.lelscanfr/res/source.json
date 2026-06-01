@@ -2,7 +2,7 @@
   "info": {
     "id": "fr.lelscanfr",
     "name": "LelscanFR",
-    "version": 2,
+    "version": 3,
     "url": "https://www.lelscanfr.com",
     "contentRating": 0,
     "languages": ["fr"]
@@ -10,5 +10,19 @@
   "config": {
     "supportsTagSearch": true,
     "maximumParallelRequests": 4
-  }
+  },
+  "listings": [
+    {
+      "id": "all",
+      "name": "Tout"
+    },
+    {
+      "id": "popular",
+      "name": "Populaire"
+    },
+    {
+      "id": "latest",
+      "name": "Latest"
+    }
+  ]
 }

@@ -3,10 +3,8 @@
 extern crate alloc;
 
 use aidoku::{
-    helpers::uri::encode_uri,
-    imports::net::Request,
-    prelude::*,
-    Chapter, ContentRating, FilterValue, ImageRequestProvider, Manga, MangaPageResult,
+    helpers::uri::encode_uri, imports::net::Request, prelude::*, Chapter, ContentRating,
+    FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
     MangaStatus, Page, PageContent, PageContext, Result, Source, Viewer,
 };
 use alloc::{
@@ -34,42 +32,10 @@ impl Source for LelscanFr {
     ) -> Result<MangaPageResult> {
         let url = search_url(query, page, &filters);
         let html = get_html(&url)?;
-        let mut entries = Vec::new();
-
-        if let Some(cards) = html.select("#card-real a[href^='https://www.lelscanfr.com/manga/']") {
-            for card in cards {
-                let Some(url) = card.attr("abs:href") else {
-                    continue;
-                };
-
-                let Some(key) = manga_key_from_url(&url) else {
-                    continue;
-                };
-
-                let image = card.select_first("img");
-                let title = image
-                    .as_ref()
-                    .and_then(|element| element.attr("alt"))
-                    .or_else(|| card.select_first("h2").and_then(|element| element.text()))
-                    .unwrap_or_else(|| key_to_title(&key));
-                let cover = image
-                    .and_then(|element| {
-                        element
-                            .attr("abs:data-src")
-                            .or_else(|| element.attr("abs:src"))
-                    });
-
-                entries.push(Manga {
-                    key,
-                    title,
-                    cover,
-                    url: Some(url),
-                    content_rating: ContentRating::Safe,
-                    viewer: Viewer::RightToLeft,
-                    ..Default::default()
-                });
-            }
-        }
+        let entries = parse_manga_cards(
+            &html,
+            "#card-real a[href^='https://www.lelscanfr.com/manga/']",
+        );
 
         Ok(MangaPageResult {
             entries,
@@ -132,10 +98,7 @@ impl Source for LelscanFr {
 
         if let Some(images) = html.select("#chapter-container img.chapter-image") {
             for image in images {
-                let Some(url) = image
-                    .attr("abs:data-src")
-                    .or_else(|| image.attr("abs:src"))
-                else {
+                let Some(url) = image.attr("abs:data-src").or_else(|| image.attr("abs:src")) else {
                     continue;
                 };
 
@@ -147,6 +110,23 @@ impl Source for LelscanFr {
         }
 
         Ok(pages)
+    }
+}
+
+impl ListingProvider for LelscanFr {
+    fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+        match listing.id.as_str() {
+            "all" => self.get_search_manga_list(None, page, Vec::new()),
+            "popular" => get_home_listing(
+                "#popular-cards #card-real a[href^='https://www.lelscanfr.com/manga/']",
+                page,
+            ),
+            "latest" => get_home_listing(
+                "#latest-cards #card-real a[href^='https://www.lelscanfr.com/manga/']",
+                page,
+            ),
+            _ => self.get_search_manga_list(None, page, Vec::new()),
+        }
     }
 }
 
@@ -163,6 +143,61 @@ fn get_html(url: &str) -> Result<aidoku::imports::html::Document> {
         .header("User-Agent", USER_AGENT)
         .header("Referer", BASE_URL)
         .html()?)
+}
+
+fn get_home_listing(selector: &str, page: i32) -> Result<MangaPageResult> {
+    if page > 1 {
+        return Ok(MangaPageResult {
+            entries: Vec::new(),
+            has_next_page: false,
+        });
+    }
+
+    let html = get_html(BASE_URL)?;
+    Ok(MangaPageResult {
+        entries: parse_manga_cards(&html, selector),
+        has_next_page: false,
+    })
+}
+
+fn parse_manga_cards(html: &aidoku::imports::html::Document, selector: &str) -> Vec<Manga> {
+    let mut entries = Vec::new();
+
+    if let Some(cards) = html.select(selector) {
+        for card in cards {
+            let Some(url) = card.attr("abs:href") else {
+                continue;
+            };
+
+            let Some(key) = manga_key_from_url(&url) else {
+                continue;
+            };
+
+            let image = card.select_first("img");
+            let title = image
+                .as_ref()
+                .and_then(|element| element.attr("alt"))
+                .or_else(|| card.select_first("h2").and_then(|element| element.text()))
+                .unwrap_or_else(|| key_to_title(&key));
+            let cover = image.and_then(|element| {
+                element
+                    .attr("abs:data-src")
+                    .or_else(|| element.attr("abs:src"))
+            });
+
+            entries.push(Manga {
+                key,
+                title,
+                cover,
+                url: Some(url),
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::RightToLeft,
+                ..Default::default()
+            });
+        }
+    }
+
+    entries
 }
 
 fn search_url(query: Option<String>, page: i32, filters: &[FilterValue]) -> String {
@@ -258,10 +293,7 @@ fn capitalize(value: &str) -> String {
         return String::new();
     };
 
-    first
-        .to_uppercase()
-        .chain(chars)
-        .collect::<String>()
+    first.to_uppercase().chain(chars).collect::<String>()
 }
 
 fn parse_status(html: &aidoku::imports::html::Document) -> MangaStatus {
@@ -385,4 +417,4 @@ fn has_next_page(html: &aidoku::imports::html::Document, page: i32) -> bool {
         .is_some()
 }
 
-register_source!(LelscanFr, ImageRequestProvider);
+register_source!(LelscanFr, ListingProvider, ImageRequestProvider);

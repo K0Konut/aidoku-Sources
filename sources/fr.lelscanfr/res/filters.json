@@ -3,7 +3,7 @@
 		"id": "type",
 		"title": "Type",
 		"type": "select",
-		"options": ["Tous", "Manga", "Manhua", "Manhwa", "Bande dessinee"],
+		"options": ["Tout", "Manga", "Manhua", "Manhwa", "Comics/BD"],
 		"ids": ["", "manga", "manhua", "manhwa", "bande-dessinee"]
 	},
 	{

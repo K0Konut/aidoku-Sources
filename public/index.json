@@ -4,9 +4,9 @@
     {
       "id": "fr.lelscanfr",
       "name": "LelscanFR",
-      "version": 2,
-      "iconURL": "icons/fr.lelscanfr-v2.png",
-      "downloadURL": "sources/fr.lelscanfr-v2.aix",
+      "version": 3,
+      "iconURL": "icons/fr.lelscanfr-v3.png",
+      "downloadURL": "sources/fr.lelscanfr-v3.aix",
       "languages": [
         "fr"
       ],
