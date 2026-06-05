@@ -2,9 +2,9 @@
   "info": {
     "id": "fr.lelscanfr",
     "name": "LelscanFR",
-    "version": 3,
+    "version": 4,
     "url": "https://www.lelscanfr.com",
-    "contentRating": 0,
+    "contentRating": 1,
     "languages": ["fr"]
   },
   "config": {
@@ -22,7 +22,11 @@
     },
     {
       "id": "latest",
-      "name": "Latest"
+      "name": "Ajouts récents"
+    },
+    {
+      "id": "recent_chapters",
+      "name": "Chapitres récents"
     }
   ]
 }

@@ -76,22 +76,14 @@ LelscanFR, update `sources/fr.lelscanfr/res/source.json`:
 Then rebuild and verify the package:
 
 ```sh
-cd ~/Projects/Aidoku-Sources/sources/fr.lelscanfr
-aidoku package
-aidoku verify package.aix
-```
-
-Rebuild the public source list from the repository root:
-
-```sh
 cd ~/Projects/Aidoku-Sources
-aidoku build sources/fr.lelscanfr/package.aix -o public
+scripts/verify-lelscanfr.sh
 ```
 
 Commit and push the source changes plus the rebuilt `public/` files:
 
 ```sh
-git add sources/fr.lelscanfr public README.md
+git add sources/fr.lelscanfr scripts public README.md
 git commit -m "fix: update LelscanFR source"
 git push origin main
 ```

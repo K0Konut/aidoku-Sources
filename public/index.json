@@ -4,13 +4,13 @@
     {
       "id": "fr.lelscanfr",
       "name": "LelscanFR",
-      "version": 3,
-      "iconURL": "icons/fr.lelscanfr-v3.png",
-      "downloadURL": "sources/fr.lelscanfr-v3.aix",
+      "version": 4,
+      "iconURL": "icons/fr.lelscanfr-v4.png",
+      "downloadURL": "sources/fr.lelscanfr-v4.aix",
       "languages": [
         "fr"
       ],
-      "contentRating": 0,
+      "contentRating": 1,
       "baseURL": "https://www.lelscanfr.com"
     }
   ]
