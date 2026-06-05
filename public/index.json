@@ -2,6 +2,18 @@
   "name": "Source List",
   "sources": [
     {
+      "id": "fr.lelmanga",
+      "name": "Lelmanga",
+      "version": 1,
+      "iconURL": "icons/fr.lelmanga-v1.png",
+      "downloadURL": "sources/fr.lelmanga-v1.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.lelmanga.com"
+    },
+    {
       "id": "fr.lelscanfr",
       "name": "LelscanFR",
       "version": 4,
