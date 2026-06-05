@@ -35,10 +35,12 @@ require_contains() {
 echo "Checking live MangaDex API..."
 ping_json="$(fetch "$API_URL/ping")"
 search_json="$(fetch "$API_URL/manga?limit=1&availableTranslatedLanguage%5B%5D=fr&hasAvailableChapters=true&contentRating%5B%5D=safe&includes%5B%5D=cover_art")"
+external_json="$(fetch "$API_URL/manga/c52b2ce3-7f95-469c-96b0-479524fb7a1a/feed?limit=5&translatedLanguage%5B%5D=fr&includeEmptyPages=1&includeExternalUrl=1")"
 
 require_contains "api ping" "$ping_json" "pong"
 require_contains "manga search result" "$search_json" "\"result\":\"ok\""
 require_contains "manga search data" "$search_json" "\"data\":["
+require_contains "external chapter feed" "$external_json" "mangaplus.shueisha.co.jp"
 
 if ! command -v aidoku >/dev/null 2>&1; then
 	echo "aidoku CLI is required for packaging and public build" >&2

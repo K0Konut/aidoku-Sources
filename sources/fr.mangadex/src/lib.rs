@@ -12,6 +12,7 @@ use aidoku::{
 use alloc::{
     format,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 use serde::{de::DeserializeOwned, Deserialize};
@@ -64,6 +65,18 @@ impl Source for MangaDexFr {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+        if let Some(url) = chapter.url.as_deref() {
+            if !url.starts_with(SITE_URL) {
+                return Ok(vec![Page {
+                    content: PageContent::text(format!(
+                        "Chapitre externe\n\nCe chapitre est heberge hors MangaDex et ne fournit pas de pages MangaDex@Home.\n\n[Ouvrir le chapitre]({})",
+                        url
+                    )),
+                    ..Default::default()
+                }]);
+            }
+        }
+
         let path = format!("/at-home/server/{}", chapter.key);
         let response: AtHomeResponse = api_get(path)?;
         let (quality, files) = if response.chapter.data.is_empty() {
@@ -154,6 +167,8 @@ struct RelationshipAttributes {
 struct MangaAttributes {
     #[serde(default)]
     title: aidoku::HashMap<String, String>,
+    #[serde(rename = "altTitles", default)]
+    alt_titles: Vec<aidoku::HashMap<String, String>>,
     #[serde(default)]
     description: aidoku::HashMap<String, String>,
     #[serde(default)]
@@ -303,7 +318,8 @@ fn fetch_chapters(manga_id: &str) -> Result<Vec<Chapter>> {
         push_param(&mut params, "offset", &offset.to_string());
         push_param(&mut params, "translatedLanguage[]", "fr");
         push_param(&mut params, "includeFutureUpdates", "0");
-        push_param(&mut params, "includeEmptyPages", "0");
+        push_param(&mut params, "includeEmptyPages", "1");
+        push_param(&mut params, "includeExternalUrl", "1");
         push_param(&mut params, "includes[]", "scanlation_group");
         push_default_content_ratings(&mut params);
         push_param(&mut params, "order[volume]", "desc");
@@ -315,7 +331,7 @@ fn fetch_chapters(manga_id: &str) -> Result<Vec<Chapter>> {
 
         for chapter in response.data {
             if let Some(chapter) = chapter_from_entity(chapter) {
-                chapters.push(chapter);
+                push_chapter(&mut chapters, chapter);
             }
         }
 
@@ -335,7 +351,13 @@ fn fetch_chapters(manga_id: &str) -> Result<Vec<Chapter>> {
 
 fn chapter_from_entity(entity: ChapterEntity) -> Option<Chapter> {
     let attributes = entity.attributes;
-    if attributes.external_url.is_some() || attributes.pages.unwrap_or_default() <= 0 {
+    let external_url = attributes
+        .external_url
+        .as_ref()
+        .and_then(|url| non_empty(Some(url)));
+    let is_external = external_url.is_some();
+
+    if !is_external && attributes.pages.unwrap_or_default() <= 0 {
         return None;
     }
 
@@ -349,14 +371,16 @@ fn chapter_from_entity(entity: ChapterEntity) -> Option<Chapter> {
             .as_deref()
             .and_then(parse_rfc3339_timestamp),
         scanlators: relationship_names(&entity.relationships, "scanlation_group"),
-        url: Some(format!("{}/chapter/{}", SITE_URL, entity.id)),
+        url: Some(external_url.unwrap_or_else(|| format!("{}/chapter/{}", SITE_URL, entity.id))),
         language: attributes.translated_language,
         ..Default::default()
     })
 }
 
 fn manga_from_entity(entity: MangaEntity) -> Manga {
-    let title = localized_value(&entity.attributes.title).unwrap_or_else(|| entity.id.clone());
+    let title = localized_value(&entity.attributes.title)
+        .or_else(|| localized_alt_title(&entity.attributes.alt_titles))
+        .unwrap_or_else(|| entity.id.clone());
     let description = localized_value(&entity.attributes.description);
     let cover = cover_url(&entity);
     let authors = relationship_names(&entity.relationships, "author");
@@ -416,6 +440,20 @@ fn localized_value(values: &aidoku::HashMap<String, String>) -> Option<String> {
     }
 
     values.iter().find_map(|(_, value)| non_empty(Some(value)))
+}
+
+fn localized_alt_title(values: &[aidoku::HashMap<String, String>]) -> Option<String> {
+    for language in ["fr", "en", "ja-ro", "ja"] {
+        for value in values {
+            if let Some(title) = non_empty(value.get(language)) {
+                return Some(title);
+            }
+        }
+    }
+
+    values
+        .iter()
+        .find_map(|value| value.iter().find_map(|(_, title)| non_empty(Some(title))))
 }
 
 fn non_empty(value: Option<&String>) -> Option<String> {
@@ -504,11 +542,48 @@ fn chapter_title(attributes: &ChapterAttributes) -> Option<String> {
         return Some(title.to_string());
     }
 
-    if attributes.chapter.is_none() {
-        Some("One-shot".to_string())
-    } else {
-        None
+    attributes
+        .chapter
+        .as_ref()
+        .and_then(|chapter| non_empty(Some(chapter)))
+        .map(|chapter| format!("Chapitre {}", chapter))
+        .or_else(|| Some("One-shot".to_string()))
+}
+
+fn push_chapter(chapters: &mut Vec<Chapter>, chapter: Chapter) {
+    if let Some(index) = chapters
+        .iter()
+        .position(|existing| is_same_chapter(existing, &chapter))
+    {
+        if is_external_chapter(&chapters[index]) && !is_external_chapter(&chapter) {
+            chapters[index] = chapter;
+        }
+        return;
     }
+
+    chapters.push(chapter);
+}
+
+fn is_same_chapter(left: &Chapter, right: &Chapter) -> bool {
+    match (left.chapter_number, right.chapter_number) {
+        (Some(left), Some(right)) => {
+            let diff = if left > right {
+                left - right
+            } else {
+                right - left
+            };
+            diff < 0.001
+        }
+        _ => left.key == right.key,
+    }
+}
+
+fn is_external_chapter(chapter: &Chapter) -> bool {
+    chapter
+        .url
+        .as_ref()
+        .map(|url| !url.starts_with(SITE_URL))
+        .unwrap_or_default()
 }
 
 fn parse_number(value: &str) -> Option<f32> {
