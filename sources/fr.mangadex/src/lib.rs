@@ -24,6 +24,7 @@ const USER_AGENT: &str = "Aidoku-Sources/1.0 (https://github.com/K0Konut/aidoku-
 const PAGE_SIZE: i32 = 20;
 const CHAPTER_PAGE_SIZE: i32 = 500;
 const DEFAULT_CONTENT_RATINGS: [&str; 3] = ["safe", "suggestive", "erotica"];
+const NO_FRENCH_CHAPTERS_KEY: &str = "__no_french_chapters";
 
 struct MangaDexFr;
 
@@ -58,13 +59,28 @@ impl Source for MangaDexFr {
         }
 
         if needs_chapters {
-            manga.chapters = Some(fetch_chapters(&manga.key)?);
+            let mut chapters = fetch_chapters(&manga.key)?;
+            if chapters.is_empty() {
+                chapters.push(no_french_chapters_placeholder(&manga));
+            }
+            manga.chapters = Some(chapters);
         }
 
         Ok(manga)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+        if chapter.key == NO_FRENCH_CHAPTERS_KEY {
+            let title_url = chapter.url.unwrap_or_else(|| SITE_URL.to_string());
+            return Ok(vec![Page {
+                content: PageContent::text(format!(
+                    "Aucun chapitre FR disponible\n\nMangaDex reference ce titre, mais son feed ne fournit aucun chapitre francais lisible pour cette entree.\n\nCela arrive quand les metadonnees MangaDex indiquent une traduction francaise alors que les chapitres ne sont pas disponibles via MangaDex@Home.\n\n[Ouvrir sur MangaDex]({})",
+                    title_url
+                )),
+                ..Default::default()
+            }]);
+        }
+
         if let Some(url) = chapter.url.as_deref() {
             if !url.starts_with(SITE_URL) {
                 return Ok(vec![Page {
@@ -347,6 +363,21 @@ fn fetch_chapters(manga_id: &str) -> Result<Vec<Chapter>> {
     }
 
     Ok(chapters)
+}
+
+fn no_french_chapters_placeholder(manga: &Manga) -> Chapter {
+    Chapter {
+        key: NO_FRENCH_CHAPTERS_KEY.to_string(),
+        title: Some("Aucun chapitre FR disponible sur MangaDex".to_string()),
+        url: Some(
+            manga
+                .url
+                .clone()
+                .unwrap_or_else(|| format!("{}/title/{}", SITE_URL, manga.key)),
+        ),
+        language: Some("fr".to_string()),
+        ..Default::default()
+    }
 }
 
 fn chapter_from_entity(entity: ChapterEntity) -> Option<Chapter> {

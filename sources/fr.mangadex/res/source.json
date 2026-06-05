@@ -2,7 +2,7 @@
   "info": {
     "id": "fr.mangadex",
     "name": "MangaDex FR",
-    "version": 2,
+    "version": 3,
     "url": "https://mangadex.org",
     "contentRating": 1,
     "languages": ["fr"]

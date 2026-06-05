@@ -7,6 +7,8 @@ Supports title search, status/demographic/content-rating filters, popular/new
 listings, manga details, French chapter feeds and MangaDex@Home image pages.
 External MangaDex chapters, such as Manga Plus links, are shown with a text
 page explaining that they are hosted outside MangaDex.
+Titles with no readable French feed show a placeholder chapter explaining that
+MangaDex has no French pages for the entry.
 
 ## Build
 
