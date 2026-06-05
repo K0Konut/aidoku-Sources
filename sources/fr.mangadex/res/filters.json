@@ -1,0 +1,24 @@
+[
+	{
+		"id": "status",
+		"title": "Statut",
+		"type": "multi-select",
+		"options": ["En cours", "Terminé", "En pause", "Annulé"],
+		"ids": ["ongoing", "completed", "hiatus", "cancelled"]
+	},
+	{
+		"id": "demographic",
+		"title": "Démographie",
+		"type": "multi-select",
+		"options": ["Shounen", "Shoujo", "Seinen", "Josei"],
+		"ids": ["shounen", "shoujo", "seinen", "josei"]
+	},
+	{
+		"id": "rating",
+		"title": "Contenu",
+		"type": "multi-select",
+		"options": ["Safe", "Suggestive", "Erotica"],
+		"ids": ["safe", "suggestive", "erotica"],
+		"defaultIncluded": ["safe", "suggestive", "erotica"]
+	}
+]

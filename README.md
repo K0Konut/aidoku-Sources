@@ -33,6 +33,12 @@ sources/
     res/filters.json
     res/source.json
     res/icon.png
+  fr.mangadex/
+    Cargo.toml
+    src/lib.rs
+    res/filters.json
+    res/source.json
+    res/icon.png
 ```
 
 The important file is `res/source.json`. It defines the source id, display name,
@@ -59,6 +65,8 @@ aidoku serve package.aix
 
 - `fr.lelscanfr`: LelscanFR, French manga scans from
   `https://www.lelscanfr.com`
+- `fr.mangadex`: MangaDex FR, French MangaDex chapters through the official
+  MangaDex API at `https://mangadex.org`
 
 ## Updating And Publishing
 
@@ -78,13 +86,15 @@ Then rebuild and verify the package:
 ```sh
 cd ~/Projects/Aidoku-Sources
 scripts/verify-lelscanfr.sh
+# or
+scripts/verify-mangadex.sh
 ```
 
 Commit and push the source changes plus the rebuilt `public/` files:
 
 ```sh
-git add sources/fr.lelscanfr scripts public README.md
-git commit -m "fix: update LelscanFR source"
+git add sources scripts public README.md
+git commit -m "feat: add or update Aidoku source"
 git push origin main
 ```
 

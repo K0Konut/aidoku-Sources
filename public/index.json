@@ -12,6 +12,18 @@
       ],
       "contentRating": 1,
       "baseURL": "https://www.lelscanfr.com"
+    },
+    {
+      "id": "fr.mangadex",
+      "name": "MangaDex FR",
+      "version": 1,
+      "iconURL": "icons/fr.mangadex-v1.png",
+      "downloadURL": "sources/fr.mangadex-v1.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangadex.org"
     }
   ]
 }

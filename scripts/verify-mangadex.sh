@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_DIR="$ROOT_DIR/sources/fr.lelscanfr"
-SOURCE_ID="fr.lelscanfr"
-BASE_URL="${LELSCANFR_BASE_URL:-https://www.lelscanfr.com}"
-USER_AGENT="${LELSCANFR_USER_AGENT:-Mozilla/5.0 (Aidoku)}"
+SOURCE_DIR="$ROOT_DIR/sources/fr.mangadex"
+SOURCE_ID="fr.mangadex"
+API_URL="${MANGADEX_API_URL:-https://api.mangadex.org}"
+USER_AGENT="${MANGADEX_USER_AGENT:-Aidoku-Sources/1.0 (https://github.com/K0Konut/aidoku-Sources)}"
 
 fetch() {
 	local url="$1"
@@ -15,15 +15,16 @@ fetch() {
 		--connect-timeout 10 \
 		--max-time 30 \
 		-A "$USER_AGENT" \
+		-H "Accept: application/json" \
 		"$url"
 }
 
 require_contains() {
 	local label="$1"
-	local html="$2"
+	local body="$2"
 	local needle="$3"
 
-	if ! grep -Fq "$needle" <<<"$html"; then
+	if ! grep -Fq "$needle" <<<"$body"; then
 		echo "missing $label: $needle" >&2
 		exit 1
 	fi
@@ -31,39 +32,25 @@ require_contains() {
 	echo "ok $label"
 }
 
-require_regex() {
-	local label="$1"
-	local html="$2"
-	local pattern="$3"
+echo "Checking live MangaDex API..."
+ping_json="$(fetch "$API_URL/ping")"
+search_json="$(fetch "$API_URL/manga?limit=1&availableTranslatedLanguage%5B%5D=fr&hasAvailableChapters=true&contentRating%5B%5D=safe&includes%5B%5D=cover_art")"
 
-	if ! grep -Eq "$pattern" <<<"$html"; then
-		echo "missing $label: $pattern" >&2
-		exit 1
-	fi
-
-	echo "ok $label"
-}
-
-echo "Checking live LelscanFR selectors..."
-manga_html="$(fetch "$BASE_URL/manga")"
-home_html="$(fetch "$BASE_URL")"
-
-require_contains "manga cards" "$manga_html" "id=\"card-real\""
-require_contains "type filter" "$manga_html" "name=\"type\""
-require_contains "status filter" "$manga_html" "name=\"status\""
-require_contains "genre filter" "$manga_html" "name=\"genre[]\""
-require_contains "manga pagination" "$manga_html" "pagination-link"
-require_regex "manga detail links" "$manga_html" "href=\"[^\"]*/manga/[^/\"?#]+\""
-
-require_contains "popular listing" "$home_html" "id=\"popular-cards\""
-require_contains "latest listing" "$home_html" "id=\"latest-cards\""
-require_contains "recent chapters heading" "$home_html" "Chapitres récents"
-require_regex "recent chapter links" "$home_html" "href=\"[^\"]*/manga/[^/\"?#]+/[0-9][^\"?#]*\""
+require_contains "api ping" "$ping_json" "pong"
+require_contains "manga search result" "$search_json" "\"result\":\"ok\""
+require_contains "manga search data" "$search_json" "\"data\":["
 
 if ! command -v aidoku >/dev/null 2>&1; then
 	echo "aidoku CLI is required for packaging and public build" >&2
 	exit 1
 fi
+
+echo "Checking Rust source..."
+(
+	cd "$SOURCE_DIR"
+	cargo fmt --check
+	cargo check --target wasm32-unknown-unknown
+)
 
 echo "Packaging and verifying all local sources..."
 build_files=()
@@ -105,4 +92,4 @@ for generated in "$TMP_PUBLIC/sources"/*.aix; do
 	fi
 done
 
-echo "LelscanFR verification complete."
+echo "MangaDex verification complete."
