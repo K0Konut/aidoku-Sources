@@ -188,6 +188,7 @@ fn catalog_page(url: &str) -> Result<MangaPageResult> {
         let title = card
             .attr("data-nom")
             .or_else(|| card.select_first(".as-carte-titre").and_then(|e| e.text()))
+            .map(|title| title.trim().to_string())
             .unwrap_or_else(|| key.clone());
         let is_webtoon = card.select_first(".as-badge-webtoon").is_some();
 
@@ -319,13 +320,14 @@ fn parse_scan_panels(raw: &str) -> Vec<(String, String)> {
     panels
 }
 
-/// The reader script sends `#titreOeuvre`'s innerHTML to the API, so keep it raw.
+/// The reader script sends `#titreOeuvre`'s innerHTML to the API, so keep it raw:
+/// no trim, the folder name can end with spaces ("Blue Lock  ").
 fn reader_title(reader: &str) -> Option<String> {
     let start = reader.find("id=\"titreOeuvre\"")?;
     let rest = &reader[start..];
     let rest = &rest[rest.find('>')? + 1..];
-    let title = rest[..rest.find('<')?].trim();
-    (!title.is_empty()).then(|| title.to_string())
+    let title = &rest[..rest.find('<')?];
+    (!title.trim().is_empty()).then(|| title.to_string())
 }
 
 /// Chapter names of the reader dropdown. Option N of the dropdown reads folder N, and
