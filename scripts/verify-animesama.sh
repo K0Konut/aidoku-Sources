@@ -65,6 +65,9 @@ require_regex "detail scan panels" "$detail_html" "panneauScan\\(\"Scans \\(coul
 require_contains "reader title" "$reader_html" "id=\"titreOeuvre\""
 require_contains "reader chapter list script" "$reader_html" "creerListe(1, 262);newSP(262.5);"
 require_regex "page count api" "$api_json" "^\\{\"1\":[0-9]+"
+# Folder names keep the title's trailing spaces ("Blue Lock  ").
+require_contains "reader raw title" "$(fetch "$BASE_URL/catalogue/blue-lock/scan/vf/")" "class=\"ct-titre\">Blue Lock  <"
+require_regex "page count api raw title" "$(fetch "$BASE_URL/s2/scans/get_nb_chap_et_img.php?oeuvre=Blue%20Lock%20%20")" "^\\{\"1\":[0-9]+"
 
 if ! curl -fsS -o /dev/null -A "$USER_AGENT" -e "$BASE_URL" "$BASE_URL/s2/scans/Jujutsu%20Kaisen/1/1.jpg"; then
 	echo "missing page image" >&2
