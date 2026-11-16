@@ -2,6 +2,18 @@
   "name": "Source List",
   "sources": [
     {
+      "id": "fr.animesama",
+      "name": "Anime-Sama",
+      "version": 1,
+      "iconURL": "icons/fr.animesama-v1.png",
+      "downloadURL": "sources/fr.animesama-v1.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://anime-sama.to"
+    },
+    {
       "id": "fr.lelmanga",
       "name": "Lelmanga",
       "version": 1,
