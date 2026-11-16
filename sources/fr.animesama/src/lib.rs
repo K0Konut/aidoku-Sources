@@ -2,11 +2,13 @@
 
 extern crate alloc;
 
+mod variants;
+
 use aidoku::{
     helpers::uri::encode_uri_component,
     imports::{
         html::{Document, Element, Html},
-        net::Request,
+        net::{Request, Response},
     },
     prelude::*,
     Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga,
@@ -44,13 +46,26 @@ impl Source for AnimeSama {
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<Manga> {
-        let url = manga_url(&manga.key);
+        let (slug, panel_path) = split_key(&manga.key);
+        let url = manga_url(slug);
         let raw = get_string(&url)?;
+        let panels = parse_scan_panels(&raw);
+        // The bare slug is the table's main panel, so a reordered page can't swap it;
+        // a panel removed from the site leaves the entry without chapters.
+        let path = panel_path.or_else(|| known_panels(slug).first().map(|(_, path)| *path));
+        let panel = match path {
+            Some(path) => panels.iter().find(|(_, p)| p == path),
+            None => panels.first(),
+        };
+        let reader_url = panel.map(|(_, path)| panel_url(slug, path));
 
         if needs_details {
             let html = Html::parse_with_url(&raw, &url)?;
-            if let Some(title) = select_text(&html, "h1#titreOeuvre") {
-                manga.title = title;
+            if let Some(work) = select_text(&html, "h1#titreOeuvre") {
+                manga.title = match panel {
+                    Some((name, _)) => panel_title(&work, name, panels.len()),
+                    None => work,
+                };
             }
             manga.cover = html
                 .select_first(".oe-affiche img")
@@ -71,12 +86,20 @@ impl Source for AnimeSama {
                 _ => MangaStatus::Unknown,
             };
             manga.content_rating = content_rating(manga.tags.as_ref());
-            manga.viewer = viewer(manga.tags.as_ref(), false);
-            manga.url = Some(url.clone());
+            // The anime block also has a "Format" row, but the manga block comes last.
+            let is_webtoon = html
+                .select_first(".oe-badges .type-badge.webtoon")
+                .is_some()
+                || info_value(&html, "Format").is_some_and(|format| is_webtoon_label(&format));
+            manga.viewer = viewer(manga.tags.as_ref(), is_webtoon);
+            manga.url = Some(reader_url.clone().unwrap_or(url));
         }
 
         if needs_chapters {
-            manga.chapters = Some(fetch_chapters(&url, &raw)?);
+            manga.chapters = Some(match &reader_url {
+                Some(reader_url) => fetch_chapters(reader_url)?,
+                None => Vec::new(),
+            });
         }
 
         Ok(manga)
@@ -86,7 +109,22 @@ impl Source for AnimeSama {
         let Some((oeuvre, folder)) = chapter.key.rsplit_once('|') else {
             bail!("Invalid chapter key");
         };
-        let Some(count) = fetch_page_counts(oeuvre)?.remove(folder) else {
+        // Some works also have a "<name> pp" folder with single pages instead of the
+        // merged vertical strips; the site's own page-by-page mode prefers it.
+        let page_by_page = format!("{oeuvre} pp");
+        let names = [page_by_page.as_str(), oeuvre];
+        let requests = names
+            .iter()
+            .map(|name| page_counts_request(name))
+            .collect::<Result<Vec<_>>>()?;
+        let Some((oeuvre, count)) =
+            names
+                .iter()
+                .zip(Request::send_all(requests))
+                .find_map(|(name, response)| {
+                    Some((*name, page_counts(response.ok()?).remove(folder)?))
+                })
+        else {
             bail!("Chapitre indisponible sur Anime-Sama");
         };
         let oeuvre = encode_uri_component(oeuvre);
@@ -179,35 +217,102 @@ fn catalog_page(url: &str) -> Result<MangaPageResult> {
         .into_iter()
         .flatten()
     {
-        let Some(key) = card.attr("data-url").and_then(|url| manga_key(&url)) else {
+        let Some(slug) = card.attr("data-url").and_then(|url| manga_key(&url)) else {
             continue;
         };
-        if entries.iter().any(|entry| entry.key == key) {
+        if entries.iter().any(|entry| entry.key == slug) {
             continue;
         }
-        let title = card
+        let work = card
             .attr("data-nom")
             .or_else(|| card.select_first(".as-carte-titre").and_then(|e| e.text()))
             .map(|title| title.trim().to_string())
-            .unwrap_or_else(|| key.clone());
-        let is_webtoon = card.select_first(".as-badge-webtoon").is_some();
-
-        entries.push(Manga {
-            url: Some(manga_url(&key)),
+            .unwrap_or_else(|| slug.clone());
+        let base = Manga {
+            url: Some(manga_url(&slug)),
             cover: card
                 .select_first(".as-carte-image img")
                 .and_then(|img| img.attr("abs:src")),
-            viewer: viewer(None, is_webtoon),
-            key,
-            title,
+            viewer: viewer(None, card.select_first(".as-badge-webtoon").is_some()),
+            key: slug.clone(),
+            title: work.clone(),
             ..Default::default()
-        });
+        };
+
+        // One entry per scan panel: the main panel keeps the bare slug as key.
+        let panels = known_panels(&slug);
+        if panels.is_empty() {
+            entries.push(base);
+            continue;
+        }
+        for (index, (name, path)) in panels.iter().enumerate() {
+            entries.push(Manga {
+                key: if index == 0 {
+                    slug.clone()
+                } else {
+                    format!("{slug}/{path}")
+                },
+                title: panel_title(&work, name, panels.len()),
+                url: Some(panel_url(&slug, path)),
+                ..base.clone()
+            });
+        }
     }
 
     Ok(MangaPageResult {
         entries,
         has_next_page: html.select_first("#list_pagination a[rel=next]").is_some(),
     })
+}
+
+/// "blue-lock" is a work's main scan panel, "blue-lock/scan_spin-off/vf" another panel.
+fn split_key(key: &str) -> (&str, Option<&str>) {
+    key.split_once('/')
+        .map_or((key, None), |(slug, path)| (slug, Some(path)))
+}
+
+/// Reader page of a scan panel, e.g. ".../catalogue/blue-lock/scan_spin-off/vf/".
+fn panel_url(slug: &str, path: &str) -> String {
+    format!("{}{}/", manga_url(slug), path.trim_matches('/'))
+}
+
+/// Scan panels of a work, from the table generated by scripts/update-animesama-variants.py
+/// (empty for works with a single panel).
+fn known_panels(slug: &str) -> &'static [(&'static str, &'static str)] {
+    variants::VARIANTS
+        .iter()
+        .find(|(s, _)| *s == slug)
+        .map_or(&[], |(_, panels)| panels)
+}
+
+/// Skips English (VA) panels, as this is a French source, and JoJo's "all parts" panel,
+/// which duplicates the per-part panels. Mirrored by scripts/update-animesama-variants.py.
+fn keep_panel(name: &str, path: &str) -> bool {
+    let name = name.to_lowercase();
+    !path.ends_with("/va")
+        && !name.contains("toute les parties")
+        && !name.contains("toutes les parties")
+}
+
+/// Entry title of a panel: "One Piece" + "Scans (couleur)" -> "One Piece (couleur)",
+/// "Blue Lock" + "Blue Lock Spin-off" -> "Blue Lock Spin-off",
+/// "Akame ga Kill" + "Zero" -> "Akame ga Kill - Zero".
+fn panel_title(work: &str, panel: &str, panel_count: usize) -> String {
+    if panel_count < 2 {
+        return work.to_string();
+    }
+    if panel.to_lowercase().contains(&work.to_lowercase()) {
+        return panel.to_string();
+    }
+    let suffix = ["Scans", "Scan"]
+        .iter()
+        .find_map(|prefix| panel.strip_prefix(prefix))
+        .filter(|rest| rest.is_empty() || rest.starts_with([' ', '(']));
+    match suffix.map(|rest| rest.trim().trim_start_matches('(').trim_end_matches(')')) {
+        Some("") => work.to_string(),
+        Some(detail) => format!("{work} ({})", detail.trim()),
+        None => format!("{work} - {panel}"),
+    }
 }
 
 /// "/catalogue/one-piece/" -> "one-piece"
@@ -232,9 +337,13 @@ fn info_value(html: &Document, label: &str) -> Option<String> {
         .last()
 }
 
+/// Genre or "Format" value of vertical-strip works.
+fn is_webtoon_label(label: &str) -> bool {
+    matches!(label, "Webcomic" | "Manhwa" | "Manhua")
+}
+
 fn viewer(tags: Option<&Vec<String>>, is_webtoon: bool) -> Viewer {
-    let webtoonish = |tag: &String| matches!(tag.as_str(), "Webcomic" | "Manhwa" | "Manhua");
-    if is_webtoon || tags.is_some_and(|tags| tags.iter().any(webtoonish)) {
+    if is_webtoon || tags.is_some_and(|tags| tags.iter().any(|tag| is_webtoon_label(tag))) {
         Viewer::Webtoon
     } else {
         Viewer::RightToLeft
@@ -250,55 +359,53 @@ fn content_rating(tags: Option<&Vec<String>>) -> ContentRating {
     }
 }
 
-fn fetch_page_counts(oeuvre: &str) -> Result<BTreeMap<String, u32>> {
-    let url = format!(
+fn page_counts_request(oeuvre: &str) -> Result<Request> {
+    request(&format!(
         "{BASE_URL}/s2/scans/get_nb_chap_et_img.php?oeuvre={}",
         encode_uri_component(oeuvre)
-    );
-    // Unknown works answer 200 with {"error": "..."}, which fails to parse as a map.
-    Ok(request(&url)?
-        .json_owned::<BTreeMap<String, u32>>()
-        .unwrap_or_default())
+    ))
 }
 
-/// One manga page can hold several scan panels (e.g. colour and black & white One Piece),
-/// each with its own reader page, work name and chapter list.
-fn fetch_chapters(manga_url: &str, raw: &str) -> Result<Vec<Chapter>> {
-    let panels = parse_scan_panels(raw);
-    let mut chapters = Vec::new();
+/// Pages per chapter folder. Unknown works answer 200 with {"error": "..."}, which
+/// fails to parse as a map.
+fn page_counts(response: Response) -> BTreeMap<String, u32> {
+    response.get_json_owned().unwrap_or_default()
+}
 
-    for (panel_name, path) in &panels {
-        let reader_url = format!("{manga_url}{}/", path.trim_matches('/'));
-        let reader = get_string(&reader_url)?;
-        let Some(oeuvre) = reader_title(&reader) else {
-            continue;
-        };
-        let counts = fetch_page_counts(&oeuvre)?;
-        let labels = ChapterLabels::parse(&reader);
-        let last = counts.keys().filter_map(|k| k.parse::<u32>().ok()).max();
+fn fetch_page_counts(oeuvre: &str) -> Result<BTreeMap<String, u32>> {
+    Ok(page_counts(page_counts_request(oeuvre)?.send()?))
+}
 
-        for folder in (1..=last.unwrap_or(0)).rev() {
-            if !counts.contains_key(&folder.to_string()) {
-                continue;
-            }
+/// Chapters of one scan panel, read from its reader page (work name and chapter names).
+fn fetch_chapters(reader_url: &str) -> Result<Vec<Chapter>> {
+    let reader = get_string(reader_url)?;
+    let Some(oeuvre) = reader_title(&reader) else {
+        return Ok(Vec::new());
+    };
+    let counts = fetch_page_counts(&oeuvre)?;
+    let labels = ChapterLabels::parse(&reader);
+    let last = counts.keys().filter_map(|k| k.parse::<u32>().ok()).max();
+
+    Ok((1..=last.unwrap_or(0))
+        .rev()
+        .filter(|folder| counts.contains_key(&folder.to_string()))
+        .map(|folder| {
             let (title, chapter_number) = labels.get(folder);
-            chapters.push(Chapter {
+            Chapter {
                 key: format!("{oeuvre}|{folder}"),
                 title,
                 chapter_number,
-                scanlators: (panels.len() > 1).then(|| vec![panel_name.clone()]),
-                url: Some(reader_url.clone()),
+                url: Some(reader_url.to_string()),
                 language: Some("fr".to_string()),
                 ..Default::default()
-            });
-        }
-    }
-
-    Ok(chapters)
+            }
+        })
+        .collect())
 }
 
 /// `panneauScan("Scans (couleur)", "scan/vf");` -> ("Scans (couleur)", "scan/vf").
-/// Skips commented-out panels and the "nom"/"url" template examples.
+/// Skips commented-out panels, the "nom"/"url" template examples and panels that
+/// `keep_panel` rejects. Mirrored by scripts/update-animesama-variants.py.
 fn parse_scan_panels(raw: &str) -> Vec<(String, String)> {
     let mut panels: Vec<(String, String)> = Vec::new();
 
@@ -311,7 +418,7 @@ fn parse_scan_panels(raw: &str) -> Vec<(String, String)> {
         };
         let args = call_args(&line[start + "panneauScan(".len()..]).map(|(args, _)| args);
         if let Some([name, path]) = args.as_deref() {
-            if name != "nom" && !panels.iter().any(|(_, p)| p == path) {
+            if name != "nom" && keep_panel(name, path) && !panels.iter().any(|(_, p)| p == path) {
                 panels.push((name.clone(), path.clone()));
             }
         }
