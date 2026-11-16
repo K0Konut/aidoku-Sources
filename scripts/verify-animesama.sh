@@ -69,6 +69,12 @@ require_regex "page count api" "$api_json" "^\\{\"1\":[0-9]+"
 require_contains "reader raw title" "$(fetch "$BASE_URL/catalogue/blue-lock/scan/vf/")" "class=\"ct-titre\">Blue Lock  <"
 require_regex "page count api raw title" "$(fetch "$BASE_URL/s2/scans/get_nb_chap_et_img.php?oeuvre=Blue%20Lock%20%20")" "^\\{\"1\":[0-9]+"
 
+require_contains "detail webtoon badge" "$(fetch "$BASE_URL/catalogue/solo-leveling/")" "class=\"type-badge webtoon\""
+require_regex "page-by-page api" "$(fetch "$BASE_URL/s2/scans/get_nb_chap_et_img.php?oeuvre=Dragon%20Ball%20pp")" "^\\{\"1\":[0-9]+"
+
+echo "Checking Anime-Sama variants table..."
+python3 -I "$ROOT_DIR/scripts/update-animesama-variants.py" --check
+
 if ! curl -fsS -o /dev/null -A "$USER_AGENT" -e "$BASE_URL" "$BASE_URL/s2/scans/Jujutsu%20Kaisen/1/1.jpg"; then
 	echo "missing page image" >&2
 	exit 1

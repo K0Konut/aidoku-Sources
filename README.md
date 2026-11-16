@@ -109,6 +109,13 @@ scripts/verify-lelmanga.sh
 scripts/verify-animesama.sh
 ```
 
+For Anime-Sama, refresh the list of works with several scan versions first
+when the verification says it is stale:
+
+```sh
+scripts/update-animesama-variants.py
+```
+
 Commit and push the source changes plus the rebuilt `public/` files:
 
 ```sh
