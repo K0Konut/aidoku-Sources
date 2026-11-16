@@ -45,6 +45,12 @@ sources/
     res/filters.json
     res/source.json
     res/icon.png
+  fr.animesama/
+    Cargo.toml
+    src/lib.rs
+    res/filters.json
+    res/source.json
+    res/icon.png
 ```
 
 The important file is `res/source.json`. It defines the source id, display name,
@@ -75,6 +81,7 @@ aidoku serve package.aix
   MangaDex API at `https://mangadex.org`
 - `fr.lelmanga`: Lelmanga, French manga scans from
   `https://www.lelmanga.com`
+- `fr.animesama`: Anime-Sama, French scans section of `https://anime-sama.to`
 
 ## Updating And Publishing
 
@@ -98,6 +105,8 @@ scripts/verify-lelscanfr.sh
 scripts/verify-mangadex.sh
 # or
 scripts/verify-lelmanga.sh
+# or
+scripts/verify-animesama.sh
 ```
 
 Commit and push the source changes plus the rebuilt `public/` files:
